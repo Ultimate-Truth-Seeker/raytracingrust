@@ -1,4 +1,3 @@
-// sphere.rs
 use raylib::prelude::*;
 use crate::material::Material;
 use crate::ray_intersect::{Hit, RayIntersect};
@@ -12,7 +11,6 @@ pub struct Sphere {
 
 impl RayIntersect for Sphere {
     fn ray_intersect(&self, ro: &Vector3, rd: &Vector3) -> Hit {
-        // Ray-sphere: (ro + t rd - c)^2 = r^2
         let oc = *ro - self.center;
         let a = rd.dot(*rd);
         let b = 2.0 * oc.dot(*rd);
@@ -35,12 +33,21 @@ impl RayIntersect for Sphere {
         let point = *ro + *rd * t;
         let normal = (point - self.center).normalized();
 
+        // spherical UV from normal
+        let theta = normal.z.atan2(normal.x);           // [-π, π]
+        let phi   = normal.y.clamp(-1.0, 1.0).acos();   // [0, π]
+
+        let u = 0.5 + theta / (2.0 * std::f32::consts::PI);
+        let v = 1.0 - phi / std::f32::consts::PI;
+
         Hit {
             is_intersecting: true,
             distance: t,
             point,
             normal,
             material: self.material,
+            uv: Vector2::new(u, v),
+            tex_id: self.material.texture,
         }
     }
 }

@@ -17,3 +17,20 @@ impl Default for Material {
         }
     }
 }
+
+impl Material {
+    fn dirt() -> Self {
+        Self {
+            diffuse: Color::WHITE,//new(200, 180, 140, 255),
+            albedo: 0.5,
+            texture: Some('#'),  // <-- uses assets/wall3.png per your map
+        }
+    }
+    fn grass() -> Self {
+        Self {
+            diffuse: Color::WHITE,//new(200, 180, 140, 255),
+            albedo: 0.5,
+            texture: Some('#'),  // <-- uses assets/wall3.png per your map
+        }
+    }
+}

@@ -10,6 +10,8 @@ pub struct Hit {
     pub point: Vector3,
     pub normal: Vector3,
     pub material: Material,
+    pub uv: Vector2,
+    pub tex_id: Option<char>
 }
 
 impl Hit {
@@ -20,6 +22,8 @@ impl Hit {
             point: Vector3::zero(),
             normal: Vector3::zero(),
             material: Material::default(),
+            uv: Vector2::zero(),
+            tex_id: None,
         }
     }
 }

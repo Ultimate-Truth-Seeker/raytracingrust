@@ -12,6 +12,7 @@ mod material;
 mod cube;
 mod camera;
 mod textures;
+mod light;
 
 use framebuffer::Framebuffer;
 use ray_intersect::{RayIntersect, Hit};
@@ -20,17 +21,11 @@ use cube::Cube;
 use material::Material;
 use camera::Camera;
 use textures::TextureManager;
-
-// -------- Luz puntual simple --------
-#[derive(Clone, Copy, Debug)]
-struct PointLight {
-    pub position: Vector3,
-    pub intensity: f32, // escala [0..∞), e.g. 1.0 = normal
-}
+use light::PointLight;
 
 // -------- Objetos soportados --------
 #[derive(Clone, Copy, Debug)]
-enum Object {
+pub enum Object {
     Sphere(Sphere),
     Cube(Cube),
 }
@@ -114,9 +109,10 @@ pub fn cast_ray(
 
     // Base color: either sample texture or use diffuse
     let mut base = closest.material.diffuse;
-    if let Some(ch) = closest.material.texture {
+    let tex_id = closest.tex_id.or(closest.material.texture);
+    if let Some(ch) = tex_id {
         // try smaller tiling for less aliasing
-        let (u, v) = box_uv_from_world(closest.point, closest.normal, 0.25);
+        let (u, v) = (closest.uv.x, closest.uv.y);//box_uv_from_world(closest.point, closest.normal, 0.25);
         base = texmgr.sample_uv_bilinear(ch, u, v);
     }
 
@@ -217,9 +213,34 @@ fn main() {
             max: Vector3::new( 1.0,  1.0, -3.0),
             material: Material {
                 diffuse: Color::WHITE,//new(200, 180, 140, 255),
-                albedo: 1.0,
+                albedo: 0.5,
                 texture: Some('#'),  // <-- uses assets/wall3.png per your map
             },
+            face_textures: [
+                    Some('|'),
+                    Some('|'),
+                    Some('g'),
+                    Some('#'),
+                    Some('|'),
+                    Some('|'),
+                ],
+        }),
+        Object::Cube(Cube {
+            min: Vector3::new(-1.0, -3.0, -5.0),
+            max: Vector3::new( 1.0,  -1.0, -3.0),
+            material: Material {
+                diffuse: Color::WHITE,//new(200, 180, 140, 255),
+                albedo: 0.5,
+                texture: Some('+'),  // <-- uses assets/wall3.png per your map
+            },
+            face_textures: [
+                    Some('+'),
+                    Some('+'),
+                    Some('+'),
+                    Some('+'),
+                    Some('+'),
+                    Some('+'),
+                ],
         }),
         Object::Sphere(Sphere {
             center: Vector3::new(-1.2, -0.5, -6.0),
@@ -232,9 +253,9 @@ fn main() {
         }),
     ];
 
-    let lights: Vec<PointLight> = vec![
-        PointLight { position: Vector3::new(2.5, 3.0, -2.0), intensity: 1.8 },
-
+    let mut lights: Vec<PointLight> = vec![
+        PointLight::new(Vector3::new(100.0, 0.0, 0.0), 2.0 ),
+        PointLight::new(Vector3::new(2.5, 3.0, -2.0), 1.8 ),
     ];
 
     let mut camera = Camera::new(
@@ -243,6 +264,7 @@ fn main() {
         Vector3::new(0.0, 1.0, 0.0),
     );
     let rotation_speed = PI / 100.0;
+    let zoom_speed = 1.0;
 
     while !window.window_should_close() {
         framebuffer.clear();
@@ -250,6 +272,10 @@ fn main() {
         if window.is_key_down(KeyboardKey::KEY_RIGHT) { camera.orbit(-rotation_speed, 0.0); }
         if window.is_key_down(KeyboardKey::KEY_UP)    { camera.orbit(0.0, -rotation_speed); }
         if window.is_key_down(KeyboardKey::KEY_DOWN)  { camera.orbit(0.0,  rotation_speed); }
+        if window.is_key_down(KeyboardKey::KEY_R)     { camera.zoom(zoom_speed); }
+        if window.is_key_down(KeyboardKey::KEY_F)     { camera.zoom(-zoom_speed); }
+
+        lights[0].rotate();
 
         render(&mut framebuffer, &objects, &lights, &camera, &texmgr); // <-- NEW
         framebuffer.swap_buffers(&mut window, &raylib_thread);

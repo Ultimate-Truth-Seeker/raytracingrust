@@ -19,11 +19,11 @@ impl Camera {
             forward: Vector3::zero(),
             right: Vector3::zero(),
         };
-
         camera.update_basis();
         camera
     }
-        pub fn update_basis(&mut self) {
+
+    pub fn update_basis(&mut self) {
         self.forward = (self.center - self.eye).normalized();
         self.right = self.forward.cross(self.up).normalized();
         self.up = self.right.cross(self.forward);
@@ -55,6 +55,29 @@ impl Camera {
 
         self.eye = self.center + new_relative_pos;
 
+        self.update_basis();
+    }
+
+    pub fn zoom(&mut self, distance: f32) {
+        // Move the eye along the vector from center to eye.
+        // Positive `distance` zooms in (gets closer to the center),
+        // negative `distance` zooms out.
+        let offset = self.eye - self.center;
+        let current_radius = offset.length();
+        if current_radius <= 0.0 {
+            return;
+        }
+
+        let dir = offset / current_radius; // normalized
+        let mut new_radius = current_radius - distance;
+
+        // Prevent the camera from crossing the center or getting too close.
+        let min_radius = 0.2;
+        if new_radius < min_radius {
+            new_radius = min_radius;
+        }
+
+        self.eye = self.center + dir * new_radius;
         self.update_basis();
     }
 
