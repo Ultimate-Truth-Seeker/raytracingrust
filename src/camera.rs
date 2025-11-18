@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use raylib::prelude::*;
 
 
@@ -6,16 +8,31 @@ pub struct Camera {
     pub center: Vector3,     // que mira la camara  7, 100, 5
     pub up: Vector3,     // what is up? for the camera
 
+    // Orbit camera parameters
+    pub yaw: f32,            // Rotation around Y axis (left/right)
+    pub pitch: f32,          // Rotation around X axis (up/down)
+
     pub forward: Vector3,
     pub right: Vector3,
 }
 
 impl Camera {
     pub fn new(eye: Vector3, center: Vector3, up: Vector3) -> Self {
+        let direction = Vector3::new(
+            eye.x - center.x,
+            eye.y - center.y,
+            eye.z - center.z,
+        );
+
+        let distance = (direction.x * direction.x + direction.y * direction.y + direction.z * direction.z).sqrt();
+        let pitch = (direction.y / distance).asin();
+        let yaw = direction.z.atan2(direction.x);
         let mut camera = Camera {
             eye,
             center,
             up,
+            yaw,
+            pitch,
             forward: Vector3::zero(),
             right: Vector3::zero(),
         };
@@ -34,23 +51,20 @@ impl Camera {
 
         let radius = relative_pos.length();
 
-        let current_yaw = relative_pos.z.atan2(relative_pos.x);
-        let current_pitch = (relative_pos.y / radius).asin();
-
         // these are spherical coordinates
-        let new_yaw = current_yaw + yaw;
-        let new_pitch = (current_pitch + pitch).clamp(-1.5, 1.5);
+        self.yaw +=  yaw;
+        self.pitch += pitch;//.clamp(-1.5, 1.5);
 
-        let pitch_cos = new_pitch.cos();
-        let pitch_sin = new_pitch.sin();
+        let pitch_cos = self.pitch.cos();
+        let pitch_sin = self.pitch.sin();
 
         // x = r * cos(a) * cos(b)
         // y = r * sin(a)
         // z = r * cos(a) * sin (b)
         let new_relative_pos = Vector3::new(
-            radius * pitch_cos * new_yaw.cos(),
+            radius * pitch_cos * self.yaw.cos(),
             radius * pitch_sin,
-            radius * pitch_cos * new_yaw.sin(),
+            radius * pitch_cos * self.yaw.sin(),
         );
 
         self.eye = self.center + new_relative_pos;

@@ -13,6 +13,9 @@ mod cube;
 mod camera;
 mod textures;
 mod light;
+mod object;
+mod color;
+mod math;
 
 use framebuffer::Framebuffer;
 use ray_intersect::{RayIntersect, Hit};
@@ -22,79 +25,50 @@ use material::Material;
 use camera::Camera;
 use textures::TextureManager;
 use light::PointLight;
+use object::Object;
 
-// -------- Objetos soportados --------
-#[derive(Clone, Copy, Debug)]
-pub enum Object {
-    Sphere(Sphere),
-    Cube(Cube),
-}
+use crate::{color::*, light::build_lights_from_objects, material::*, math::*, object::sample_objects};
 
-impl RayIntersect for Object {
-    fn ray_intersect(&self, ro: &Vector3, rd: &Vector3) -> Hit {
-        match self {
-            Object::Sphere(s) => s.ray_intersect(ro, rd),
-            Object::Cube(c)   => c.ray_intersect(ro, rd),
-        }
+fn procedural_sky(dir: Vector3) -> Vector3 {
+    let d = dir.normalized();
+    let t = (d.y + 1.0) * 0.5; // map y [-1,1] → [0,1]
+
+    let green = Vector3::new(0.1, 0.6, 0.2); // grass green
+    let white = Vector3::new(1.0, 1.0, 1.0); // horizon haze
+    let blue = Vector3::new(0.3, 0.5, 1.0);  // sky blue
+
+    if t < 0.54 {
+        // Bottom → fade green to white
+        let k = t / 0.55;
+        green * (1.0 - k) + white * k
+    } else if t < 0.55 {
+        // Around horizon → mostly white
+        white
+    } else if t < 0.8 {
+        // Fade white to blue
+        let k = (t - 0.55) / (0.25);
+        white * (1.0 - k) + blue * k
+    } else {
+        // Upper sky → solid blue
+        blue
     }
 }
 
-// -------- utilidades de color --------
-fn color_scale(c: Color, s: f32) -> Color {
-    let r = (c.r as f32 * s).clamp(0.0, 255.0) as u8;
-    let g = (c.g as f32 * s).clamp(0.0, 255.0) as u8;
-    let b = (c.b as f32 * s).clamp(0.0, 255.0) as u8;
-    Color::new(r, g, b, c.a)
-}
-
-fn color_mul(c: Color, f: f32) -> Color { color_scale(c, f) }
-
-fn color_add(a: Color, b: Color) -> Color {
-    Color::new(
-        a.r.saturating_add(b.r),
-        a.g.saturating_add(b.g),
-        a.b.saturating_add(b.b),
-        255,
-    )
-}
-
-// -------- UV helpers (box mapping from hit point & normal) --------
-fn box_uv_from_world(p: Vector3, n: Vector3, tile: f32) -> (f32, f32) {
-    let ax = n.x.abs();
-    let ay = n.y.abs();
-    let az = n.z.abs();
-
-    let (u, v) = if ax >= ay && ax >= az {
-        // X-dominant face: use (Z, Y). Flip U depending on face side so seams align.
-        let u = if n.x > 0.0 { -p.z } else {  p.z };
-        let v = p.y;
-        (u * tile, v * tile)
-    } else if ay >= ax && ay >= az {
-        // Y-dominant face: use (X, Z)
-        let u = p.x;
-        let v = if n.y > 0.0 { -p.z } else {  p.z };
-        (u * tile, v * tile)
-    } else {
-        // Z-dominant face: use (X, Y)
-        let u = if n.z > 0.0 {  p.x } else { -p.x };
-        let v = p.y;
-        (u * tile, v * tile)
-    };
-
-    // Tile to [0,1)
-    let uu = (u - u.floor()).fract();
-    let vv = (v - v.floor()).fract();
-    (uu, vv)
-}
-
+const MAX_DEPTH: u32 = 4;
 // -------- trazado con Lambert + sombra --------
 pub fn cast_ray(
     ro: &Vector3,
     rd: &Vector3,
     objects: &[Object],
     lights: &[PointLight],
-    texmgr: &TextureManager,            // <-- NEW
+    texmgr: &TextureManager,
+    depth: u32,
 ) -> Color {
+    let default = procedural_sky(rd.clone());
+    if depth >= MAX_DEPTH {
+        //return Color::new(4, 12, 36, 255); // background
+        return linear_to_srgb(default.x, default.y, default.z);
+    }
     // Buscar el hit más cercano
     let mut closest = Hit::no_hit();
     for obj in objects {
@@ -104,43 +78,50 @@ pub fn cast_ray(
         }
     }
     if !closest.is_intersecting {
-        return Color::new(4, 12, 36, 255); // fondo
+        //return Color::new(4, 12, 36, 255);
+        return linear_to_srgb(default.x, default.y, default.z);
     }
 
-    // Base color: either sample texture or use diffuse
-    let mut base = closest.material.diffuse;
+    // Pick texture id (per-face or per-material, depending on your setup)
     let tex_id = closest.tex_id.or(closest.material.texture);
-    if let Some(ch) = tex_id {
-        // try smaller tiling for less aliasing
-        let (u, v) = (closest.uv.x, closest.uv.y);//box_uv_from_world(closest.point, closest.normal, 0.25);
-        base = texmgr.sample_uv_bilinear(ch, u, v);
-    }
 
-    // Iluminación difusa (Lambert) + sombras duras
-    let ambient = 0.08;
-    let mut out_color = color_mul(base, ambient);
+    // Base color in sRGB
+    let base_srgb = if let Some(ch) = tex_id {
+        let u = closest.uv.x;
+        let v = closest.uv.y;
+        texmgr.sample_uv_bilinear(ch, u, v) // or your sampler
+    } else {
+        closest.material.diffuse
+    };
+
+    // Convert to linear for lighting
+    let (br, bg, bb) = srgb_to_linear(base_srgb);
+
+    let m = closest.material;
+    let ambient = 0.05;
+
+    let mut lr = br * ambient * m.albedo;
+    let mut lg = bg * ambient * m.albedo;
+    let mut lb = bb * ambient * m.albedo;
+
+    // view direction (towards camera)
+    let view_dir = (*ro - closest.point).normalized();
 
     for light in lights {
         let to_light = light.position - closest.point;
         let light_dist = to_light.length();
         let l_dir = to_light / light_dist;
 
-        // Shadow ray
-        //let eps = 1e-3;
-        //let shadow_origin = closest.point + closest.normal * eps;
+        // Shadow ray with your angle-aware bias:
+        let ndotl_raw = closest.normal.dot(l_dir).clamp(-1.0, 1.0);
+        let bias = 5e-3 + 5e-3 * (1.0 - ndotl_raw.abs());
+        let shadow_origin = closest.point + closest.normal * if ndotl_raw >= 0.0 { bias } else { -bias };
 
-        // Before casting the shadow ray
-        let ndotl = closest.normal.dot(l_dir).clamp(-1.0, 1.0);
-
-        // Angle-aware bias: bigger bias for grazing angles
-        let bias = 5e-3 + 5e-3 * (1.0 - ndotl.abs());
-
-        // Two-sided: push along +N if light is above the surface, else along -N
-        let shadow_origin = closest.point + closest.normal * if ndotl >= 0.0 { bias } else { -bias };
-
-        // (then cast the shadow ray from shadow_origin)
         let mut in_shadow = false;
-        for obj in objects {
+        for (obj_index, obj) in objects.iter().enumerate() {
+            if Some(obj_index) == light.emitter_index {
+                continue;
+            }
             let h = obj.ray_intersect(&shadow_origin, &l_dir);
             if h.is_intersecting && h.distance < light_dist {
                 in_shadow = true;
@@ -149,13 +130,93 @@ pub fn cast_ray(
         }
 
         if !in_shadow {
-            let ndotl = closest.normal.dot(l_dir).max(0.0);
-            let lambert = ndotl * light.intensity * closest.material.albedo;
-            out_color = color_add(out_color, color_mul(base, lambert));
+            // Diffuse (Lambert)
+            let ndotl = ndotl_raw.max(0.0);
+            let diff = ndotl * light.intensity * m.albedo;
+
+            lr += br * diff;
+            lg += bg * diff;
+            lb += bb * diff;
+
+            // Specular (Phong)
+            if m.specular_strength > 0.0 {
+                let reflect_dir = reflect(-l_dir, closest.normal).normalized();
+                let rv = reflect_dir.dot(view_dir).max(0.0);
+                let spec_factor = rv.powf(m.shininess) * m.specular_strength * light.intensity;
+
+                // white specular; you can make it colored if you want
+                lr += spec_factor;
+                lg += spec_factor;
+                lb += spec_factor;
+            }
         }
     }
 
-    out_color
+    let eps = 1e-3;
+    // --- Fresnel-based mixing ---
+    // cos_theta: angle between view direction and surface normal
+    // rd points TOWARDS the scene, so view dir is -rd.
+    let cos_theta = (-rd.dot(closest.normal)).max(0.0);
+
+    // Base reflectivity at normal incidence (f0)
+    // Option A: use your material.reflectivity as f0 (0..1)
+    let f0 = m.reflectivity.clamp(0.0, 1.0);
+
+    // Option B (more physical for dielectrics):
+    // let f0 = f0_from_ior(m.ior);
+
+    // Fresnel reflection factor depending on angle
+    let fresnel = fresnel_schlick(cos_theta, f0);
+
+    // kr: reflection factor (angle-dependent)
+    // kt: transparency factor (constant for now)
+    let kr = fresnel;
+    let kt = m.transparency.clamp(0.0, 1.0);
+
+    // kd: leftover part for local (diffuse+specular) lighting
+    let mut kd = 1.0 - kr - kt;
+    if kd < 0.0 { kd = 0.0; }
+
+    // Start final color with local lighting scaled by kd
+    let mut fr = lr * kd;
+    let mut fg = lg * kd;
+    let mut fb = lb * kd;
+
+    // --- Reflection contribution ---
+    if kr > 0.0 {
+        let refl_dir = reflect(*rd, closest.normal).normalized();
+        let refl_origin = closest.point + closest.normal * eps;
+        let refl_color = cast_ray(&refl_origin, &refl_dir, objects, lights, texmgr, depth + 1);
+        let (rr, rg, rb) = srgb_to_linear(refl_color);
+
+        fr += rr * kr;
+        fg += rg * kr;
+        fb += rb * kr;
+    }
+
+    // --- Refraction contribution ---
+    if kt > 0.0 {
+        if let Some(refr_dir) = refract(*rd, closest.normal, 1.0, m.ior) {
+            let refr_origin = closest.point - closest.normal * eps; // slightly inside
+            let refr_color = cast_ray(&refr_origin, &refr_dir.normalized(), objects, lights, texmgr, depth + 1);
+            let (tr, tg, tb) = srgb_to_linear(refr_color);
+
+            fr += tr * kt;
+            fg += tg * kt;
+            fb += tb * kt;
+        }
+    }
+
+    // Add emissive term (in linear space)
+    if closest.material.emission_strength > 0.0 {
+        let (er, eg, eb) = srgb_to_linear(closest.material.emission);
+        fr += er * closest.material.emission_strength;
+        fg += eg * closest.material.emission_strength;
+        fb += eb * closest.material.emission_strength;
+    }
+
+    // Convert back to sRGB and return
+    return linear_to_srgb(fr, fg, fb);
 }
 
 pub fn render(
@@ -183,7 +244,7 @@ pub fn render(
             let rd_world = camera.basis_change(&rd_cam).normalized();
             let ro_world = camera.eye;
 
-            let pixel_color = cast_ray(&ro_world, &rd_world, objects, lights, texmgr);
+            let pixel_color = cast_ray(&ro_world, &rd_world, objects, lights, texmgr, 0);
             framebuffer.set_current_color(pixel_color);
             framebuffer.set_pixel(x, y);
         }
@@ -191,8 +252,8 @@ pub fn render(
 }
 
 fn main() {
-    let window_width = 1300;
-    let window_height = 900;
+    let window_width = 700;
+    let window_height = 500;
 
     let (mut window, raylib_thread) = raylib::init()
         .size(window_width, window_height)
@@ -207,57 +268,14 @@ fn main() {
     let texmgr = TextureManager::new(&mut window, &raylib_thread); // <-- NEW
 
     // Escena: un cubo AABB y una esfera con texturas
-    let objects: Vec<Object> = vec![
-        Object::Cube(Cube {
-            min: Vector3::new(-1.0, -1.0, -5.0),
-            max: Vector3::new( 1.0,  1.0, -3.0),
-            material: Material {
-                diffuse: Color::WHITE,//new(200, 180, 140, 255),
-                albedo: 0.5,
-                texture: Some('#'),  // <-- uses assets/wall3.png per your map
-            },
-            face_textures: [
-                    Some('|'),
-                    Some('|'),
-                    Some('g'),
-                    Some('#'),
-                    Some('|'),
-                    Some('|'),
-                ],
-        }),
-        Object::Cube(Cube {
-            min: Vector3::new(-1.0, -3.0, -5.0),
-            max: Vector3::new( 1.0,  -1.0, -3.0),
-            material: Material {
-                diffuse: Color::WHITE,//new(200, 180, 140, 255),
-                albedo: 0.5,
-                texture: Some('+'),  // <-- uses assets/wall3.png per your map
-            },
-            face_textures: [
-                    Some('+'),
-                    Some('+'),
-                    Some('+'),
-                    Some('+'),
-                    Some('+'),
-                    Some('+'),
-                ],
-        }),
-        Object::Sphere(Sphere {
-            center: Vector3::new(-1.2, -0.5, -6.0),
-            radius: 0.6,
-            material: Material {
-                diffuse: Color::new(180, 40, 40, 255),
-                albedo: 1.0,
-                texture: Some('+'),  // <-- assets/wall4.png
-            }
-        }),
-    ];
-
-    let mut lights: Vec<PointLight> = vec![
-        PointLight::new(Vector3::new(100.0, 0.0, 0.0), 2.0 ),
-        PointLight::new(Vector3::new(2.5, 3.0, -2.0), 1.8 ),
-    ];
-
+    let objects: Vec<Object> = sample_objects();
+    let mut lights: Vec<PointLight> = build_lights_from_objects(&objects);//vec![
+        //PointLight::new(Vector3::new(100.0, 0.0, 0.0), 2.0 ),
+        //PointLight::new(Vector3::new(-100.0, 0.0, 0.0), 0.5 ),
+    //];
+    //lights.extend_from_slice(&build_lights_from_objects(&objects));
+    let sr = lights[0].intensity.to_string();
+    print!("{sr}");
     let mut camera = Camera::new(
         Vector3::new(0.0, 0.0, 10.0),
         Vector3::new(0.0, 0.0, 0.0),
@@ -275,7 +293,8 @@ fn main() {
         if window.is_key_down(KeyboardKey::KEY_R)     { camera.zoom(zoom_speed); }
         if window.is_key_down(KeyboardKey::KEY_F)     { camera.zoom(-zoom_speed); }
 
-        lights[0].rotate();
+        //lights[0].rotate();
+        //lights[1].rotate();
 
         render(&mut framebuffer, &objects, &lights, &camera, &texmgr); // <-- NEW
         framebuffer.swap_buffers(&mut window, &raylib_thread);

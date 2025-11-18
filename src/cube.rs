@@ -1,6 +1,6 @@
 // cube.rs
 use raylib::prelude::*;
-use crate::material::Material;
+use crate::material::{Material, *};
 use crate::ray_intersect::{Hit, RayIntersect};
 
 #[derive(Clone, Copy, Debug)]
@@ -132,6 +132,34 @@ impl RayIntersect for Cube {
 }
 
 impl Cube {
+    pub fn new(x:f32, y:f32, z:f32, tex: char) -> Self {
+        Cube {
+            min: Vector3::new(x, y, z),
+            max: Vector3::new( x + 1.0,  y + 1.0, z + 1.0),
+            material: match tex {
+                '+' => stone(),
+                '-' => obsidian(),
+                '#' => dirt(),
+                't' => glass(),
+                'l' => lamp(),
+                _ => dirt(),
+            },
+            face_textures: [
+                    Some(tex),Some(tex),Some(tex),Some(tex),Some(tex),Some(tex),
+                ],
+        }
+    }
+    pub fn grass_block(x:f32, y:f32, z:f32) -> Self {
+        Cube {
+            min: Vector3::new(x, y, z),
+            max: Vector3::new( x + 1.0,  y + 1.0, z + 1.0),
+            material: grass(),
+            face_textures: [
+                    Some('|'),Some('|'),Some('g'),Some('#'),Some('|'),Some('|'),
+                ],
+        }
+    }
+
     fn tex_for_face(&self, face: i32) -> Option<char> {
         match face {
             1  => self.face_textures[0], // +X
