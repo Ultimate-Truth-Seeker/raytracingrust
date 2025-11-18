@@ -16,6 +16,7 @@ mod light;
 mod object;
 mod color;
 mod math;
+mod skybox;
 
 use framebuffer::Framebuffer;
 use ray_intersect::{RayIntersect, Hit};
@@ -27,32 +28,7 @@ use textures::TextureManager;
 use light::PointLight;
 use object::Object;
 
-use crate::{color::*, light::build_lights_from_objects, material::*, math::*, object::sample_objects};
-
-fn procedural_sky(dir: Vector3) -> Vector3 {
-    let d = dir.normalized();
-    let t = (d.y + 1.0) * 0.5; // map y [-1,1] → [0,1]
-
-    let green = Vector3::new(0.1, 0.6, 0.2); // grass green
-    let white = Vector3::new(1.0, 1.0, 1.0); // horizon haze
-    let blue = Vector3::new(0.3, 0.5, 1.0);  // sky blue
-
-    if t < 0.54 {
-        // Bottom → fade green to white
-        let k = t / 0.55;
-        green * (1.0 - k) + white * k
-    } else if t < 0.55 {
-        // Around horizon → mostly white
-        white
-    } else if t < 0.8 {
-        // Fade white to blue
-        let k = (t - 0.55) / (0.25);
-        white * (1.0 - k) + blue * k
-    } else {
-        // Upper sky → solid blue
-        blue
-    }
-}
+use crate::{color::*, light::build_lights_from_objects, material::*, math::*, object::sample_objects, skybox::*};
 
 const MAX_DEPTH: u32 = 4;
 // -------- trazado con Lambert + sombra --------
@@ -62,6 +38,7 @@ pub fn cast_ray(
     objects: &[Object],
     lights: &[PointLight],
     texmgr: &TextureManager,
+    ambient: f32,
     depth: u32,
 ) -> Color {
     let default = procedural_sky(rd.clone());
@@ -98,7 +75,7 @@ pub fn cast_ray(
     let (br, bg, bb) = srgb_to_linear(base_srgb);
 
     let m = closest.material;
-    let ambient = 0.05;
+    //let ambient = 0.05;
 
     let mut lr = br * ambient * m.albedo;
     let mut lg = bg * ambient * m.albedo;
@@ -108,6 +85,7 @@ pub fn cast_ray(
     let view_dir = (*ro - closest.point).normalized();
 
     for light in lights {
+        let (lr_l, lg_l, lb_l) = srgb_to_linear(light.color);
         let to_light = light.position - closest.point;
         let light_dist = to_light.length();
         let l_dir = to_light / light_dist;
@@ -132,11 +110,14 @@ pub fn cast_ray(
         if !in_shadow {
             // Diffuse (Lambert)
             let ndotl = ndotl_raw.max(0.0);
+            //let distance2 = light_dist * light_dist + 1e-3;
+            //let attenuation = 1.0 / distance2; // or 1.0 / (1 + distance2) etc.
+
             let diff = ndotl * light.intensity * m.albedo;
 
-            lr += br * diff;
-            lg += bg * diff;
-            lb += bb * diff;
+            lr += br * lr_l * diff;
+            lg += bg * lg_l * diff;
+            lb += bb * lb_l * diff;
 
             // Specular (Phong)
             if m.specular_strength > 0.0 {
@@ -145,9 +126,9 @@ pub fn cast_ray(
                 let spec_factor = rv.powf(m.shininess) * m.specular_strength * light.intensity;
 
                 // white specular; you can make it colored if you want
-                lr += spec_factor;
-                lg += spec_factor;
-                lb += spec_factor;
+                lr += lr_l * spec_factor;
+                lg += lg_l * spec_factor;
+                lb += lb_l * spec_factor;
             }
         }
     }
@@ -186,7 +167,7 @@ pub fn cast_ray(
     if kr > 0.0 {
         let refl_dir = reflect(*rd, closest.normal).normalized();
         let refl_origin = closest.point + closest.normal * eps;
-        let refl_color = cast_ray(&refl_origin, &refl_dir, objects, lights, texmgr, depth + 1);
+        let refl_color = cast_ray(&refl_origin, &refl_dir, objects, lights, texmgr, ambient, depth + 1);
         let (rr, rg, rb) = srgb_to_linear(refl_color);
 
         fr += rr * kr;
@@ -198,21 +179,13 @@ pub fn cast_ray(
     if kt > 0.0 {
         if let Some(refr_dir) = refract(*rd, closest.normal, 1.0, m.ior) {
             let refr_origin = closest.point - closest.normal * eps; // slightly inside
-            let refr_color = cast_ray(&refr_origin, &refr_dir.normalized(), objects, lights, texmgr, depth + 1);
+            let refr_color = cast_ray(&refr_origin, &refr_dir.normalized(), objects, lights, texmgr, ambient, depth + 1);
             let (tr, tg, tb) = srgb_to_linear(refr_color);
 
             fr += tr * kt;
             fg += tg * kt;
             fb += tb * kt;
         }
-    }
-
-    // Add emissive term (in linear space)
-    if closest.material.emission_strength > 0.0 {
-        let (er, eg, eb) = srgb_to_linear(closest.material.emission);
-        fr += er * closest.material.emission_strength;
-        fg += eg * closest.material.emission_strength;
-        fb += eb * closest.material.emission_strength;
     }
 
     // Convert back to sRGB and return
@@ -224,7 +197,8 @@ pub fn render(
     objects: &[Object],
     lights: &[PointLight],
     camera: &Camera,
-    texmgr: &TextureManager,           // <-- NEW
+    texmgr: &TextureManager,
+    ambient: f32,
 ) {
     let width = framebuffer.width as f32;
     let height = framebuffer.height as f32;
@@ -244,7 +218,7 @@ pub fn render(
             let rd_world = camera.basis_change(&rd_cam).normalized();
             let ro_world = camera.eye;
 
-            let pixel_color = cast_ray(&ro_world, &rd_world, objects, lights, texmgr, 0);
+            let pixel_color = cast_ray(&ro_world, &rd_world, objects, lights, texmgr, ambient, 0);
             framebuffer.set_current_color(pixel_color);
             framebuffer.set_pixel(x, y);
         }
@@ -284,6 +258,8 @@ fn main() {
     let rotation_speed = PI / 100.0;
     let zoom_speed = 1.0;
 
+    let mut sky = Sky::new();
+
     while !window.window_should_close() {
         framebuffer.clear();
         if window.is_key_down(KeyboardKey::KEY_LEFT)  { camera.orbit( rotation_speed, 0.0); }
@@ -295,8 +271,11 @@ fn main() {
 
         //lights[0].rotate();
         //lights[1].rotate();
-
-        render(&mut framebuffer, &objects, &lights, &camera, &texmgr); // <-- NEW
+        let dt = window.get_frame_time();
+        sky.update_sky(dt);
+        lights.push(sky.sun);lights.push(sky.moon);
+        render(&mut framebuffer, &objects, &lights, &camera, &texmgr, sky.ambient); // <-- NEW
+        lights.pop(); lights.pop();
         framebuffer.swap_buffers(&mut window, &raylib_thread);
     }
 }

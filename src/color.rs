@@ -19,6 +19,14 @@ pub fn color_add(a: Color, b: Color) -> Color {
     )
 }
 
+pub fn lerp_color(a: Color, b: Color, t: f32) -> Color {
+    let t = t.clamp(0.0, 1.0);
+    let r = (a.r as f32 + (b.r as f32 - a.r as f32) * t) as u8;
+    let g = (a.g as f32 + (b.g as f32 - a.g as f32) * t) as u8;
+    let bch = (a.b as f32 + (b.b as f32 - a.b as f32) * t) as u8;
+    Color::new(r, g, bch, 255)
+}
+
 pub fn srgb_to_linear(c: Color) -> (f32, f32, f32) {
     (c.r as f32 / 255.0,
     c.g as f32 / 255.0,

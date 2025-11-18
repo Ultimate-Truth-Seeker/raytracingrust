@@ -10,17 +10,18 @@ pub struct PointLight {
     pub position: Vector3,
     pub intensity: f32, // escala [0..∞), e.g. 1.0 = normal
     pub emitter_index: Option<usize>,
+    pub color: Color,
     theta: f32,
 }
 
 impl PointLight {
-    pub fn new(position: Vector3, intensity: f32, emitter_index: Option<usize>) -> Self {
+    pub fn new(position: Vector3, intensity: f32, color: Color, emitter_index: Option<usize>) -> Self {
         let size = position.length();
         let mut theta = (position.x / size).acos();
         if position.y < 0.0 {
             theta = 2.0*PI - theta
         }
-        PointLight { position, intensity, emitter_index, theta }
+        PointLight { position, intensity, color, emitter_index, theta }
     }
     pub fn rotate(&mut self) {
         let rot_speed = PI / 75.0;
@@ -42,6 +43,7 @@ pub fn build_lights_from_objects(objects: &[Object]) -> Vec<PointLight> {
                     lights.push(PointLight::new(
                         s.center,
                         s.material.emission_strength,
+                        s.material.emission,
                         Some(i),
                     ));
                 }
@@ -52,6 +54,7 @@ pub fn build_lights_from_objects(objects: &[Object]) -> Vec<PointLight> {
                     lights.push(PointLight::new(
                         center,
                         c.material.emission_strength,
+                        c.material.emission,
                         Some(i),
                     ));
                 }

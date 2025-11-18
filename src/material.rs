@@ -118,8 +118,8 @@ pub fn lamp() -> Material {
         shininess: 16.0, 
         reflectivity: 0.0, 
         transparency: 0.5, 
-        ior: 1.5, 
-        emission: Color::WHITE, 
+        ior: 1.0, 
+        emission: Color::ORANGE, 
         emission_strength: 2.0, 
         texture: Some('l'),
     }
