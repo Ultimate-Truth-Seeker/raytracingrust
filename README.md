@@ -1,7 +1,7 @@
 # Minecraft‑Inspired Raytraced Diorama  
 *A fully custom Rust + Raylib CPU raytracer*
 
-https://github.com/Ultimate-Truth-Seejer/raytracingrust  <!-- optional project link -->
+https://github.com/Ultimate-Truth-Seeker/raytracingrust
 
 ---
 
