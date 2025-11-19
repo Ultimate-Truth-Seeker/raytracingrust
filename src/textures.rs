@@ -121,6 +121,9 @@ impl TextureManager {
     }
 }
 
+unsafe impl Sync for TextureManager {}
+unsafe impl Send for TextureManager {}
+
 fn get_pixel_color(image: &Image, x: i32, y: i32) -> Color {
     let width = image.width as usize;
     let height = image.height as usize;

@@ -32,7 +32,7 @@ impl RayIntersect for Object {
 pub fn sample_objects() -> Vec<Object> {
     let ship_obj = Obj::load("assets/cono.obj").expect("Error cargando obj");
     vec![
-        Object::Mesh(Mesh::from_obj(&ship_obj, Material::default(), Vector3::new(0.0, 0.0, -20.0), 1.0)),
+        Object::Mesh(Mesh::from_obj(&ship_obj, Material::default(), Vector3::new(0.0, 0.0, -5.0), 1.0)),
 
         //lights
         Object::Cube(Cube::new(-3.0, 1.0, 0.0, 'l')),

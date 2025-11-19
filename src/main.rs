@@ -4,6 +4,7 @@
 
 use raylib::prelude::*;
 use std::f32::consts::PI;
+use rayon::prelude::*;
 
 mod framebuffer;
 mod ray_intersect;
@@ -222,26 +223,45 @@ pub fn render(
     texmgr: &TextureManager,
     sky: &Sky,
 ) {
-    let width = framebuffer.width as f32;
-    let height = framebuffer.height as f32;
-    let aspect_ratio = width / height;
+    let width = framebuffer.width as usize;
+    let height = framebuffer.height as usize;
+
+    let w_f = width as f32;
+    let h_f = height as f32;
+    let aspect_ratio = w_f / h_f;
     let fov = PI / 3.0;
     let perspective_scale = (fov * 0.5).tan();
 
-    for y in 0..framebuffer.height {
-        for x in 0..framebuffer.width {
-            let screen_x = (2.0 * x as f32) / width - 1.0;
-            let screen_y = -(2.0 * y as f32) / height + 1.0;
+    // 1) Temporary image buffer for this frame
+    let mut pixels = vec![Color::BLACK; width * height];
 
-            let screen_x = screen_x * aspect_ratio * perspective_scale;
-            let screen_y = screen_y * perspective_scale;
+    // 2) Parallel over rows
+    pixels
+        .par_chunks_mut(width)   // each chunk = one row [x=0..width-1]
+        .enumerate()
+        .for_each(|(y, row)| {
+            let y = y as u32;
+            for x in 0..width as u32 {
+                let screen_x = (2.0 * x as f32) / w_f - 1.0;
+                let screen_y = -(2.0 * y as f32) / h_f + 1.0;
 
-            let rd_cam = Vector3::new(screen_x, screen_y, -1.0).normalized();
-            let rd_world = camera.basis_change(&rd_cam).normalized();
-            let ro_world = camera.eye;
+                let screen_x = screen_x * aspect_ratio * perspective_scale;
+                let screen_y = screen_y * perspective_scale;
 
-            let pixel_color = cast_ray(&ro_world, &rd_world, objects, lights, texmgr, &sky, 0);
-            framebuffer.set_current_color(pixel_color);
+                let rd_cam = Vector3::new(screen_x, screen_y, -1.0).normalized();
+                let rd_world = camera.basis_change(&rd_cam).normalized();
+                let ro_world = camera.eye;
+
+                let color = cast_ray(&ro_world, &rd_world, objects, lights, texmgr, sky, 0);
+                row[x as usize] = color;
+            }
+        });
+
+    // 3) Copy into framebuffer (single-threaded)
+    for y in 0..height as u32 {
+        for x in 0..width as u32 {
+            let idx = y as usize * width + x as usize;
+            framebuffer.set_current_color(pixels[idx]);
             framebuffer.set_pixel(x, y);
         }
     }
