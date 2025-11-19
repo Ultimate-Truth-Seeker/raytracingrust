@@ -12,7 +12,7 @@ pub struct Cube {
 }
 
 impl RayIntersect for Cube {
-    fn ray_intersect(&self, ro: &Vector3, rd: &Vector3) -> Hit {
+    fn ray_intersect(&self, ro: &Vector3, rd: &Vector3, obj_id: usize) -> Hit {
         // Safe inverses
         let invx = if rd.x.abs() < 1e-8 {
             1.0 / (if rd.x.is_sign_negative() { -1.0e-8 } else { 1.0e-8 })
@@ -126,6 +126,7 @@ impl RayIntersect for Cube {
             normal,
             material: self.material,
             uv: Vector2::new(u, v),
+            obj_id,
             tex_id: self.tex_for_face(face),
         }
     }

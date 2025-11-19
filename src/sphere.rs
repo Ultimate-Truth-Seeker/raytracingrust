@@ -10,7 +10,7 @@ pub struct Sphere {
 }
 
 impl RayIntersect for Sphere {
-    fn ray_intersect(&self, ro: &Vector3, rd: &Vector3) -> Hit {
+    fn ray_intersect(&self, ro: &Vector3, rd: &Vector3, obj_id: usize) -> Hit {
         let oc = *ro - self.center;
         let a = rd.dot(*rd);
         let b = 2.0 * oc.dot(*rd);
@@ -47,6 +47,7 @@ impl RayIntersect for Sphere {
             normal,
             material: self.material,
             uv: Vector2::new(u, v),
+            obj_id,
             tex_id: self.material.texture,
         }
     }

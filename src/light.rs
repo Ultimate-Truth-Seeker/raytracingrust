@@ -23,12 +23,19 @@ impl PointLight {
         }
         PointLight { position, intensity, color, emitter_index, theta }
     }
-    pub fn rotate(&mut self) {
-        let rot_speed = PI / 75.0;
-        self.theta = self.theta + rot_speed;
+    pub fn rotate(&mut self, theta: f32) {
+        //let rot_speed = PI / 75.0;
+        self.theta = theta;
         let size = self.position.length();
         self.position.x = size * self.theta.cos();
         self.position.y = size * self.theta.sin();
+    }
+
+    pub fn set_intensity(&mut self, intensity: f32) {
+        self.intensity = intensity;
+    }
+    pub fn set_current_color(&mut self, color: Color) {
+        self.color = color;
     }
 }
 

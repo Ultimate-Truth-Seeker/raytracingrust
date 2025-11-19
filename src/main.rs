@@ -38,18 +38,19 @@ pub fn cast_ray(
     objects: &[Object],
     lights: &[PointLight],
     texmgr: &TextureManager,
-    ambient: f32,
+    sky: &Sky,
     depth: u32,
 ) -> Color {
-    let default = procedural_sky(rd.clone());
+    let ambient = sky.ambient;
+    let default = sky.procedural_sky(rd.clone());
     if depth >= MAX_DEPTH {
         //return Color::new(4, 12, 36, 255); // background
         return linear_to_srgb(default.x, default.y, default.z);
     }
     // Buscar el hit más cercano
     let mut closest = Hit::no_hit();
-    for obj in objects {
-        let h = obj.ray_intersect(ro, rd);
+    for (oid, obj) in objects.iter().enumerate() {
+        let h = obj.ray_intersect(ro, rd, oid);
         if h.is_intersecting && h.distance < closest.distance {
             closest = h;
         }
@@ -90,30 +91,38 @@ pub fn cast_ray(
         let light_dist = to_light.length();
         let l_dir = to_light / light_dist;
 
-        // Shadow ray with your angle-aware bias:
+        // Shadow ray with transparency-aware visibility
         let ndotl_raw = closest.normal.dot(l_dir).clamp(-1.0, 1.0);
         let bias = 5e-3 + 5e-3 * (1.0 - ndotl_raw.abs());
         let shadow_origin = closest.point + closest.normal * if ndotl_raw >= 0.0 { bias } else { -bias };
 
-        let mut in_shadow = false;
+        let mut light_visibility = 1.0_f32;
         for (obj_index, obj) in objects.iter().enumerate() {
             if Some(obj_index) == light.emitter_index {
                 continue;
             }
-            let h = obj.ray_intersect(&shadow_origin, &l_dir);
+            let h = obj.ray_intersect(&shadow_origin, &l_dir, obj_index);
             if h.is_intersecting && h.distance < light_dist {
-                in_shadow = true;
-                break;
+                let mat_blocker = h.material;
+                // If the blocker is transparent, let some light through
+                if mat_blocker.transparency > 0.0 {
+                    light_visibility *= mat_blocker.transparency.clamp(0.0, 1.0);
+                    // With our single-hit intersection we can't gather multiple layers,
+                    // so we just attenuate once and stop.
+                    break;
+                } else {
+                    // Opaque blocker: full shadow
+                    light_visibility = 0.0;
+                    break;
+                }
             }
         }
 
-        if !in_shadow {
+        if light_visibility > 0.0 {
             // Diffuse (Lambert)
+            let cid = closest.obj_id;
             let ndotl = ndotl_raw.max(0.0);
-            //let distance2 = light_dist * light_dist + 1e-3;
-            //let attenuation = 1.0 / distance2; // or 1.0 / (1 + distance2) etc.
-
-            let diff = ndotl * light.intensity * m.albedo;
+            let diff = light.intensity * m.albedo * light_visibility * if Some(cid) != light.emitter_index {ndotl} else {ndotl_raw.abs()};
 
             lr += br * lr_l * diff;
             lg += bg * lg_l * diff;
@@ -123,9 +132,9 @@ pub fn cast_ray(
             if m.specular_strength > 0.0 {
                 let reflect_dir = reflect(-l_dir, closest.normal).normalized();
                 let rv = reflect_dir.dot(view_dir).max(0.0);
-                let spec_factor = rv.powf(m.shininess) * m.specular_strength * light.intensity;
+                let mut spec_factor = rv.powf(m.shininess) * m.specular_strength * light.intensity;
+                spec_factor *= light_visibility;
 
-                // white specular; you can make it colored if you want
                 lr += lr_l * spec_factor;
                 lg += lg_l * spec_factor;
                 lb += lb_l * spec_factor;
@@ -167,7 +176,7 @@ pub fn cast_ray(
     if kr > 0.0 {
         let refl_dir = reflect(*rd, closest.normal).normalized();
         let refl_origin = closest.point + closest.normal * eps;
-        let refl_color = cast_ray(&refl_origin, &refl_dir, objects, lights, texmgr, ambient, depth + 1);
+        let refl_color = cast_ray(&refl_origin, &refl_dir, objects, lights, texmgr, &sky, depth + 1);
         let (rr, rg, rb) = srgb_to_linear(refl_color);
 
         fr += rr * kr;
@@ -179,7 +188,7 @@ pub fn cast_ray(
     if kt > 0.0 {
         if let Some(refr_dir) = refract(*rd, closest.normal, 1.0, m.ior) {
             let refr_origin = closest.point - closest.normal * eps; // slightly inside
-            let refr_color = cast_ray(&refr_origin, &refr_dir.normalized(), objects, lights, texmgr, ambient, depth + 1);
+            let refr_color = cast_ray(&refr_origin, &refr_dir.normalized(), objects, lights, texmgr, &sky, depth + 1);
             let (tr, tg, tb) = srgb_to_linear(refr_color);
 
             fr += tr * kt;
@@ -198,7 +207,7 @@ pub fn render(
     lights: &[PointLight],
     camera: &Camera,
     texmgr: &TextureManager,
-    ambient: f32,
+    sky: &Sky,
 ) {
     let width = framebuffer.width as f32;
     let height = framebuffer.height as f32;
@@ -218,7 +227,7 @@ pub fn render(
             let rd_world = camera.basis_change(&rd_cam).normalized();
             let ro_world = camera.eye;
 
-            let pixel_color = cast_ray(&ro_world, &rd_world, objects, lights, texmgr, ambient, 0);
+            let pixel_color = cast_ray(&ro_world, &rd_world, objects, lights, texmgr, &sky, 0);
             framebuffer.set_current_color(pixel_color);
             framebuffer.set_pixel(x, y);
         }
@@ -269,12 +278,10 @@ fn main() {
         if window.is_key_down(KeyboardKey::KEY_R)     { camera.zoom(zoom_speed); }
         if window.is_key_down(KeyboardKey::KEY_F)     { camera.zoom(-zoom_speed); }
 
-        //lights[0].rotate();
-        //lights[1].rotate();
         let dt = window.get_frame_time();
         sky.update_sky(dt);
         lights.push(sky.sun);lights.push(sky.moon);
-        render(&mut framebuffer, &objects, &lights, &camera, &texmgr, sky.ambient); // <-- NEW
+        render(&mut framebuffer, &objects, &lights, &camera, &texmgr, &sky); // <-- NEW
         lights.pop(); lights.pop();
         framebuffer.swap_buffers(&mut window, &raylib_thread);
     }
