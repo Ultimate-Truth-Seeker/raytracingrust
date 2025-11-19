@@ -66,6 +66,16 @@ pub fn build_lights_from_objects(objects: &[Object]) -> Vec<PointLight> {
                     ));
                 }
             }
+            Object::AnimatedQuad(aq) => {
+                if aq.material.emission_strength > 0.0 {
+                    lights.push(PointLight::new(
+                        aq.center, 
+                        aq.material.emission_strength, 
+                        aq.material.emission, 
+                        Some(i)
+                    ));
+                }
+            }
         }
     }
 

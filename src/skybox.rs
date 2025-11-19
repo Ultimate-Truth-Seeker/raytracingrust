@@ -7,6 +7,7 @@ use crate::{color::lerp_color, light::PointLight};
 
 pub struct Sky {
     pub time: f32,           // 0..1 = fraction of the day
+    pub elapsed: f32,
     pub day_length: f32,          // seconds per full day/night cycle
     pub sun: PointLight,
     pub moon: PointLight,
@@ -19,10 +20,11 @@ impl Sky {
         let day_length = 20.0_f32;          // seconds per full day/night cycle
         let sun = PointLight::new(Vector3::new(-1000.0, 0.0, 0.0), 0.0, Color::BLACK, None);
         let moon = PointLight::new(Vector3::new(1000.0, 0.0, 0.0), 0.0, Color::new(200, 210, 255, 255), None);
-        Sky {time, day_length, sun, moon, ambient: 0.0}
+        Sky {time, elapsed: 0.0, day_length, sun, moon, ambient: 0.0}
     }
 
     pub fn update_sky(&mut self, dt: f32) {
+        self.elapsed += dt;
         self.time = (self.time + dt / self.day_length) % 1.0;     // wrap [0,1)
         // Angle over the day: 0..2π
         let theta = self.time * 2.0 * PI;

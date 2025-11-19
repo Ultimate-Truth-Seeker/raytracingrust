@@ -17,6 +17,7 @@ mod object;
 mod color;
 mod math;
 mod skybox;
+mod animated_quad;
 
 use framebuffer::Framebuffer;
 use ray_intersect::{RayIntersect, Hit};
@@ -62,20 +63,36 @@ pub fn cast_ray(
 
     // Pick texture id (per-face or per-material, depending on your setup)
     let tex_id = closest.tex_id.or(closest.material.texture);
+    let m = closest.material;
 
     // Base color in sRGB
     let base_srgb = if let Some(ch) = tex_id {
         let u = closest.uv.x;
-        let v = closest.uv.y;
-        texmgr.sample_uv_bilinear(ch, u, v) // or your sampler
+        let mut v = closest.uv.y;
+
+        // If this material is animated (frames stacked vertically)
+        if m.anim_frames > 1 && m.anim_fps > 0.0 {
+            // time in seconds
+            let t_anim = sky.elapsed; 
+
+            let frame_f = (t_anim * m.anim_fps).floor();
+            let frame_idx = (frame_f as u32) % m.anim_frames;
+
+            let frame_h = 1.0 / m.anim_frames as f32;
+
+            // v in [0,1] inside the frame → shift into the atlas
+            v = v.clamp(0.0, 1.0);
+            v = frame_idx as f32 * frame_h + v * frame_h;
+        }
+
+        texmgr.sample_uv_bilinear(ch, u, v)
     } else {
-        closest.material.diffuse
+        m.diffuse
     };
 
     // Convert to linear for lighting
     let (br, bg, bb) = srgb_to_linear(base_srgb);
 
-    let m = closest.material;
     //let ambient = 0.05;
 
     let mut lr = br * ambient * m.albedo;

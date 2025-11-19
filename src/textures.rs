@@ -22,7 +22,8 @@ impl TextureManager {
             ('|', "assets/grass_block_side.png"),
             ('#', "assets/dirt.png"), // default/fallback
             ('t', "assets/glass.png"),
-            ('l', "assets/redstone_lamp_on.png")
+            ('l', "assets/redstone_lamp_on.png"),
+            ('p', "assets/nether_portal.png"),
         ];
 
         for (ch, path) in texture_files {
@@ -54,7 +55,7 @@ impl TextureManager {
     pub fn get_texture(&self, ch: char) -> Option<&Texture2D> {
         self.textures.get(&ch)
     }
-    // textures.rs (add this inside impl TextureManager)
+    // textures.rs 
     pub fn sample_uv(&self, ch: char, u: f32, v: f32) -> Color {
         if let Some(img) = self.images.get(&ch) {
             let w = img.width as u32;

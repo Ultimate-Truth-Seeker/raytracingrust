@@ -15,6 +15,8 @@ pub struct Material {
     pub emission_strength: f32,  // how bright it glows
 
     pub texture: Option<char>,
+    pub anim_frames: u32,
+    pub anim_fps: f32,
 }
 
 impl Default for Material {
@@ -30,6 +32,8 @@ impl Default for Material {
             emission: Color::BLACK,
             emission_strength: 0.0,
             texture: None,
+            anim_frames: 1,
+            anim_fps: 0.0,
         }
     }
 }
@@ -47,6 +51,8 @@ pub fn dirt() -> Material {
             emission: Color::BLACK,
             emission_strength: 0.0,
             texture: Some('#'), 
+            anim_frames: 1,
+            anim_fps: 0.0,
         }
     }
     
@@ -62,6 +68,8 @@ pub fn grass() -> Material {
             emission: Color::BLACK,
             emission_strength: 0.0,
             texture: Some('#'),  
+            anim_frames: 1,
+            anim_fps: 0.0,
         }
 }
 
@@ -77,6 +85,8 @@ pub fn stone() -> Material {
         emission: Color::BLACK,
         emission_strength: 0.0,
         texture: Some('+'),
+        anim_frames: 1,
+        anim_fps: 0.0,
     }
 }
 
@@ -92,6 +102,8 @@ pub fn obsidian() -> Material {
         emission: Color::BLACK,
         emission_strength: 0.0,
         texture: Some('-'),
+        anim_frames: 1,
+        anim_fps: 0.0,
     }
 }
 
@@ -99,14 +111,16 @@ pub fn glass() -> Material {
     Material {
         diffuse: Color::WHITE,
         albedo: 1.0,
-        specular_strength: 0.5,
+        specular_strength: 0.0,
         shininess: 32.0,
-        reflectivity: 0.0,
-        transparency: 0.8,
-        ior: 1.0,
+        reflectivity: 0.3,
+        transparency: 0.65,
+        ior: 1.4,
         emission: Color::BLACK,
         emission_strength: 0.0,
         texture: Some('-'),
+        anim_frames: 1,
+        anim_fps: 0.0,
     }
 }
 
@@ -120,7 +134,26 @@ pub fn lamp() -> Material {
         transparency: 0.0, 
         ior: 1.0, 
         emission: Color::WHITE, 
-        emission_strength: 5.0, 
+        emission_strength: 3.0, 
         texture: Some('l'),
+        anim_frames: 1,
+        anim_fps: 0.0,
+    }
+}
+
+pub fn portal() -> Material {
+    Material { 
+        diffuse: Color::WHITE, 
+        albedo: 1.0, 
+        specular_strength: 0.0, 
+        shininess: 16.0, 
+        reflectivity: 0.0, 
+        transparency: 0.5, 
+        ior: 1.0, 
+        emission: Color::MAGENTA, 
+        emission_strength: 0.5, 
+        texture: Some('p'),
+        anim_frames: 32,
+        anim_fps: 24.0,
     }
 }
