@@ -277,6 +277,12 @@ fn main() {
         .log_level(TraceLogLevel::LOG_WARNING)
         .build();
 
+    let audio = raylib::audio::RaylibAudio::init_audio_device().expect("Failed to initialize audio device");
+    let music = audio
+        .new_music("assets/calm1.ogg")
+        .expect("failed to load music");
+    music.play_stream();
+
     let mut framebuffer = Framebuffer::new(window_width as u32, window_height as u32, Color::BLACK);
     framebuffer.set_background_color(Color::new(4, 12, 36, 255));
 
@@ -288,7 +294,7 @@ fn main() {
     let mut lights: Vec<PointLight> = build_lights_from_objects(&objects);//vec![
     
     let mut camera = Camera::new(
-        Vector3::new(0.0, 0.0, 10.0),
+        Vector3::new(0.0, 0.0, 20.0),
         Vector3::new(0.0, 0.0, 0.0),
         Vector3::new(0.0, 1.0, 0.0),
     );
@@ -303,6 +309,7 @@ fn main() {
     let mut sky = Sky::new();
 
     while !window.window_should_close() {
+        music.update_stream();
         framebuffer.clear();
         if window.is_key_down(KeyboardKey::KEY_LEFT)  { camera.orbit( rotation_speed, 0.0); }
         if window.is_key_down(KeyboardKey::KEY_RIGHT) { camera.orbit(-rotation_speed, 0.0); }

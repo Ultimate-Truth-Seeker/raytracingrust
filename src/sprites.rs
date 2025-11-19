@@ -25,7 +25,7 @@ impl SpriteSystem {
     pub fn new(region_min: Vector3, region_max: Vector3) -> Self {
         let mut sprites = Vec::new();
         let mut rng = rand::thread_rng();
-        for _ in 0..15 {
+        for _ in 0..25 {
             let pid = rng.gen_range(0..=7);
             sprites.push(respawn(region_min, region_max, match pid {
                 0 => '0',

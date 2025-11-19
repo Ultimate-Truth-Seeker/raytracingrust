@@ -18,17 +18,25 @@ pub struct Camera {
 
 impl Camera {
     pub fn new(eye: Vector3, center: Vector3, up: Vector3) -> Self {
-        let direction = Vector3::new(
+        let mut direction = Vector3::new(
             eye.x - center.x,
             eye.y - center.y,
             eye.z - center.z,
         );
-
-        let distance = (direction.x * direction.x + direction.y * direction.y + direction.z * direction.z).sqrt();
+        let mut new_eye = eye;
+        
+        let mut distance = (direction.x * direction.x + direction.y * direction.y + direction.z * direction.z).sqrt();
+        if distance == 0.0 {
+            new_eye = Vector3::new(0.0, 0.0, 10.0);
+            direction = Vector3::new(0.0, 0.0, 10.0);
+        } else if distance < 10.0 {
+            new_eye = (direction / distance) * 10.0;
+        }
+        distance =distance.max(10.0);
         let pitch = (direction.y / distance).asin();
         let yaw = direction.z.atan2(direction.x);
         let mut camera = Camera {
-            eye,
+            eye: new_eye,
             center,
             up,
             yaw,
@@ -86,7 +94,7 @@ impl Camera {
         let mut new_radius = current_radius - distance;
 
         // Prevent the camera from crossing the center or getting too close.
-        let min_radius = 0.2;
+        let min_radius = 10.0;
         if new_radius < min_radius {
             new_radius = min_radius;
         }

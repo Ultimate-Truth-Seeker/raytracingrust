@@ -33,10 +33,11 @@ pub fn sample_objects() -> Vec<Object> {
     let ship_obj = Obj::load("assets/cono.obj").expect("Error cargando obj");
     vec![
         Object::Mesh(Mesh::from_obj(&ship_obj, Material::default(), Vector3::new(0.0, 0.0, -5.0), 1.0)),
+        Object::Sphere(Sphere { center: Vector3::new(4.5, 2.5, -0.5), radius: 0.5, material: glass() }),
 
         //lights
         Object::Cube(Cube::new(-3.0, 1.0, 0.0, 'l')),
-        Object::Cube(Cube::new(6.0, 1.0, -1.0, 'l')),
+        Object::Cube(Cube::new(4.0, 1.0, -1.0, 'l')),
 
         Object::Cube(Cube::grass_block(0.0, -1.0, 0.0)),
         Object::Cube(Cube::new(0.0, 0.0, 0.0, 't')),
