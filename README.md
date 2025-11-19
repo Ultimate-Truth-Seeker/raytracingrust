@@ -225,6 +225,6 @@ cargo run --release
 ---
 
 ## 📜 License  
-MIT License (or specify yours)
+MIT License
 
 ---
