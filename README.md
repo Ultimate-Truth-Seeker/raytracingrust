@@ -215,7 +215,7 @@ cargo run --release
 ---
 
 ## 📸 Screenshots  
-*(Add your images here)*
+TBD
 
 ---
 
