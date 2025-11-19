@@ -76,6 +76,11 @@ pub fn build_lights_from_objects(objects: &[Object]) -> Vec<PointLight> {
                     ));
                 }
             }
+            Object::Mesh(m) => {
+                if m.material.emission_strength > 0.0 {
+                    
+                }
+            }
         }
     }
 

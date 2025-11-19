@@ -7,9 +7,7 @@ use std::f32::consts::PI;
 
 mod framebuffer;
 mod ray_intersect;
-mod sphere;
 mod material;
-mod cube;
 mod camera;
 mod textures;
 mod light;
@@ -17,13 +15,10 @@ mod object;
 mod color;
 mod math;
 mod skybox;
-mod animated_quad;
 mod sprites;
 
 use framebuffer::Framebuffer;
 use ray_intersect::{RayIntersect, Hit};
-use sphere::Sphere;
-use cube::Cube;
 use material::Material;
 use camera::Camera;
 use textures::TextureManager;
@@ -253,8 +248,8 @@ pub fn render(
 }
 
 fn main() {
-    let window_width = 700;
-    let window_height = 500;
+    let window_width = 500;
+    let window_height = 250;
 
     let (mut window, raylib_thread) = raylib::init()
         .size(window_width, window_height)

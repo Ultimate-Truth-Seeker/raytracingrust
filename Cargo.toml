@@ -10,3 +10,4 @@ debug = false
 [dependencies]
 raylib = "5.5.1"
 rand = "0.8"
+tobj = "4.0.3"

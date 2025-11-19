@@ -25,7 +25,7 @@ impl SpriteSystem {
     pub fn new(region_min: Vector3, region_max: Vector3) -> Self {
         let mut sprites = Vec::new();
         let mut rng = rand::thread_rng();
-        for _ in 0..20 {
+        for _ in 0..15 {
             let pid = rng.gen_range(0..=7);
             sprites.push(respawn(region_min, region_max, match pid {
                 0 => '0',
@@ -83,6 +83,7 @@ fn sprite_visible(camera: &Camera, sprite_pos: Vector3, objects: &[Object]) -> b
 
         let mut closest = Hit::no_hit();
         for (obj_id, obj) in objects.iter().enumerate() {
+            
             let h = obj.ray_intersect(&ro, &rd, obj_id);
             if h.is_intersecting && h.distance < closest.distance {
                  if h.material.transparency < 0.5 {
