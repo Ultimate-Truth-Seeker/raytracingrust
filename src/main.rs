@@ -18,6 +18,7 @@ mod color;
 mod math;
 mod skybox;
 mod animated_quad;
+mod sprites;
 
 use framebuffer::Framebuffer;
 use ray_intersect::{RayIntersect, Hit};
@@ -29,7 +30,7 @@ use textures::TextureManager;
 use light::PointLight;
 use object::Object;
 
-use crate::{color::*, light::build_lights_from_objects, material::*, math::*, object::sample_objects, skybox::*};
+use crate::{color::*, light::build_lights_from_objects, material::*, math::*, object::sample_objects, skybox::*, sprites::{SpriteSystem, render_sprites}};
 
 const MAX_DEPTH: u32 = 4;
 // -------- trazado con Lambert + sombra --------
@@ -270,12 +271,7 @@ fn main() {
     // Escena: un cubo AABB y una esfera con texturas
     let objects: Vec<Object> = sample_objects();
     let mut lights: Vec<PointLight> = build_lights_from_objects(&objects);//vec![
-        //PointLight::new(Vector3::new(100.0, 0.0, 0.0), 2.0 ),
-        //PointLight::new(Vector3::new(-100.0, 0.0, 0.0), 0.5 ),
-    //];
-    //lights.extend_from_slice(&build_lights_from_objects(&objects));
-    let sr = lights[0].intensity.to_string();
-    print!("{sr}");
+    
     let mut camera = Camera::new(
         Vector3::new(0.0, 0.0, 10.0),
         Vector3::new(0.0, 0.0, 0.0),
@@ -283,6 +279,11 @@ fn main() {
     );
     let rotation_speed = PI / 100.0;
     let zoom_speed = 1.0;
+
+    let mut sprite_system = SpriteSystem::new(
+        Vector3::new(1.0, 0.0, -1.0), 
+        Vector3::new(2.0, 3.0, 1.0)
+    );
 
     let mut sky = Sky::new();
 
@@ -299,6 +300,10 @@ fn main() {
         sky.update_sky(dt);
         lights.push(sky.sun);lights.push(sky.moon);
         render(&mut framebuffer, &objects, &lights, &camera, &texmgr, &sky); // <-- NEW
+        
+        sprite_system.update(dt, &camera, &objects);
+        let fov = PI/3.0;
+        render_sprites(&mut framebuffer, &sprite_system.sprites, &camera, &texmgr, fov);
         lights.pop(); lights.pop();
         framebuffer.swap_buffers(&mut window, &raylib_thread);
     }

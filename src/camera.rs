@@ -102,4 +102,16 @@ impl Camera {
             p.x * self.right.z + p.y * self.up.z - p.z * self.forward.z,
         )
     }
+
+    // World -> camera space
+    pub fn world_to_camera(&self, p: &Vector3) -> Vector3 {
+        let rel = *p - self.eye;
+        // Your basis_change does: world_dir = right*x + up*y - forward*z
+        // So inverse is dot with basis vectors, with -forward for z.
+        Vector3::new(
+            rel.dot(self.right),
+            rel.dot(self.up),
+            -rel.dot(self.forward),
+        )
+    }
 }

@@ -24,6 +24,14 @@ impl TextureManager {
             ('t', "assets/glass.png"),
             ('l', "assets/redstone_lamp_on.png"),
             ('p', "assets/nether_portal.png"),
+            ('0', "assets/portal/generic_0.png"),
+            ('1', "assets/portal/generic_1.png"),
+            ('2', "assets/portal/generic_2.png"),
+            ('3', "assets/portal/generic_3.png"),
+            ('4', "assets/portal/generic_4.png"),
+            ('5', "assets/portal/generic_5.png"),
+            ('6', "assets/portal/generic_6.png"),
+            ('7', "assets/portal/generic_7.png"),
         ];
 
         for (ch, path) in texture_files {

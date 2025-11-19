@@ -23,6 +23,7 @@ pub fn sample_objects() -> Vec<Object> {
     vec![
         //lights
         Object::Cube(Cube::new(-3.0, 1.0, 0.0, 'l')),
+        Object::Cube(Cube::new(6.0, 1.0, -1.0, 'l')),
 
         Object::Cube(Cube::grass_block(0.0, -1.0, 0.0)),
         Object::Cube(Cube::new(0.0, 0.0, 0.0, 't')),
