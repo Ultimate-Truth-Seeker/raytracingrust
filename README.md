@@ -220,7 +220,7 @@ cargo run --release
 ---
 
 ## 🎬 Demo Video  
-![Demo Video](assets/demo.mov)
+![Demo Video](assets/demo.gif)
 
 ---
 
